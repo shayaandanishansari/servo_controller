@@ -10,7 +10,7 @@
     arduino-cli compile --fqbn esp32:esp32:esp32 servo_test
 
   Upload (replace COMx with your port):
-    arduino-cli upload -p COMx --fqbn esp32:esp32:esp32 servo_test
+    arduino-cli upload -p COM10 --fqbn esp32:esp32:esp32 servo_test
 */
 
 #include <WiFi.h>
@@ -82,7 +82,7 @@ void setup() {
   Serial.printf("\nConnected. IP: %s\n", WiFi.localIP().toString().c_str());
 
   prefs.begin("servo", false);
-  pos = prefs.getInt("pos", -1);  // -1 means no saved position yet
+  pos = prefs.getInt("pos", -1);
   Serial.printf("Restored position: %d deg\n", pos);
 
   server.on("/left",  HTTP_GET, handleLeft);
