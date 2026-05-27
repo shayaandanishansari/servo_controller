@@ -1,3 +1,58 @@
+import asyncio
+from pynput import keyboard
+from bleak import BleakClient, BleakScanner
+
+DEVICE_NAME  = "PanTiltAgent"
+NUS_RX_UUID  = "6E400002-B5B3-F393-E0A9-E50E24DCCA9E"
+NUS_TX_UUID  = "6E400003-B5B3-F393-E0A9-E50E24DCCA9E"
+
+KEY_MAP = {
+    keyboard.Key.right: "right",
+    keyboard.Key.left:  "left",
+    keyboard.Key.up:    "up",
+    keyboard.Key.down:  "down",
+}
+
+def on_feedback(sender, data):
+    print(f"[ESP32] {data.decode()}")
+
+async def main():
+    print(f"Scanning for '{DEVICE_NAME}'...")
+    device = await BleakScanner.find_device_by_name(DEVICE_NAME, timeout=10.0)
+    if not device:
+        print(f"[ERROR] '{DEVICE_NAME}' not found. Is the ESP32 powered and advertising?")
+        return
+
+    async with BleakClient(device) as client:
+        print(f"Connected to {device.name} ({device.address})")
+        await client.start_notify(NUS_TX_UUID, on_feedback)
+
+        loop     = asyncio.get_event_loop()
+        stop_evt = asyncio.Event()
+
+        def on_press(key):
+            cmd = KEY_MAP.get(key)
+            if cmd:
+                asyncio.run_coroutine_threadsafe(
+                    client.write_gatt_char(NUS_RX_UUID, cmd.encode()),
+                    loop
+                )
+            elif key == keyboard.KeyCode.from_char("q"):
+                loop.call_soon_threadsafe(stop_evt.set)
+                return False
+
+        with keyboard.Listener(on_press=on_press):
+            await stop_evt.wait()
+
+        await client.stop_notify(NUS_TX_UUID)
+        print("Disconnected.")
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Exiting.")
+
 """
 import pynput
 import bluetooth connection library
