@@ -16,36 +16,42 @@ KEY_MAP = {
 def on_feedback(sender, data):
     print(f"[ESP32] {data.decode()}")
 
-async def main():
+async def connect():
     print(f"Scanning for '{DEVICE_NAME}'...")
     device = await BleakScanner.find_device_by_name(DEVICE_NAME, timeout=10.0)
     if not device:
         print(f"[ERROR] '{DEVICE_NAME}' not found. Is the ESP32 powered and advertising?")
-        return
+        exit(1)
+    print(f"Connected to {device.name} ({device.address})")
+    return device
 
+async def listen(client):
+    await client.start_notify(NUS_TX_UUID, on_feedback)
+
+    loop     = asyncio.get_event_loop()
+    stop_evt = asyncio.Event()
+
+    def on_press(key):
+        cmd = KEY_MAP.get(key)
+        if cmd:
+            asyncio.run_coroutine_threadsafe(
+                client.write_gatt_char(NUS_RX_UUID, cmd.encode()),
+                loop
+            )
+        elif key == keyboard.KeyCode.from_char("q"):
+            loop.call_soon_threadsafe(stop_evt.set)
+            return False
+
+    with keyboard.Listener(on_press=on_press):
+        await stop_evt.wait()
+
+    await client.stop_notify(NUS_TX_UUID)
+    print("Disconnected.")
+
+async def main():
+    device = await connect()
     async with BleakClient(device) as client:
-        print(f"Connected to {device.name} ({device.address})")
-        await client.start_notify(NUS_TX_UUID, on_feedback)
-
-        loop     = asyncio.get_event_loop()
-        stop_evt = asyncio.Event()
-
-        def on_press(key):
-            cmd = KEY_MAP.get(key)
-            if cmd:
-                asyncio.run_coroutine_threadsafe(
-                    client.write_gatt_char(NUS_RX_UUID, cmd.encode()),
-                    loop
-                )
-            elif key == keyboard.KeyCode.from_char("q"):
-                loop.call_soon_threadsafe(stop_evt.set)
-                return False
-
-        with keyboard.Listener(on_press=on_press):
-            await stop_evt.wait()
-
-        await client.stop_notify(NUS_TX_UUID)
-        print("Disconnected.")
+        await listen(client)
 
 if __name__ == "__main__":
     try:

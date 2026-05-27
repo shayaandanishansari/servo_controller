@@ -13,42 +13,56 @@
 #define STEP      10
 #define PAN_MIN   0
 #define PAN_MAX   100
-#define TILT_MIN  0
-#define TILT_MAX  50
 
 Servo panServo;
 Servo tiltServo;
 BLECharacteristic* pTxChar;
 
-int panPos, tiltPos;
-int panTarget, tiltTarget;
+int panPos  = 0;
+int tiltPos = 0;
 
 class RxCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic* pChar) override {
-        std::string raw = pChar->getValue();
-        if (raw.length() == 0) return;
-
-        String cmd = String(raw.c_str());
+        String cmd = pChar->getValue();
+        if (cmd.length() == 0) return;
         cmd.trim();
 
-        int newPanTarget  = panTarget;
-        int newTiltTarget = tiltTarget;
-
-        if      (cmd == "right") newPanTarget  = panTarget  + STEP;
-        else if (cmd == "left")  newPanTarget  = panTarget  - STEP;
-        else if (cmd == "up")    newTiltTarget = tiltTarget - STEP;
-        else if (cmd == "down")  newTiltTarget = tiltTarget + STEP;
-
-        newPanTarget  = constrain(newPanTarget,  PAN_MIN,  PAN_MAX);
-        newTiltTarget = constrain(newTiltTarget, TILT_MIN, TILT_MAX);
-
         String feedback;
-        if (newPanTarget != panTarget || newTiltTarget != tiltTarget) {
-            panTarget  = newPanTarget;
-            tiltTarget = newTiltTarget;
-            feedback   = cmd + ":moved";
-        } else {
-            feedback = cmd + ":limit";
+
+        if (cmd == "right") {
+            for (int i = 0; i < STEP; i++){
+                panPos += 1;
+                panServo.write( panPos);
+                delay(15);
+            }
+            feedback = "right:moved";
+        }
+        else if (cmd == "left") {
+            for (int i = 0; i < STEP; i++) {
+                panPos -= 1;
+                panServo.write(panPos);
+                delay(15);
+            }
+            feedback = "left:moved";
+        }
+        else if (cmd == "up") {
+            for (int i = 0; i < STEP; i++) {
+                tiltPos -= 1;
+                tiltServo.write(tiltPos);
+                delay(15);
+            }
+            feedback = "up:moved";
+        }
+        else if (cmd == "down") {
+            for (int i = 0; i < STEP; i++) {
+                tiltPos += 1;
+                tiltServo.write(tiltPos);
+                delay(15);
+            }
+            feedback = "down:moved";
+        }
+        else {
+            return;
         }
 
         pTxChar->setValue(feedback.c_str());
@@ -57,20 +71,20 @@ class RxCallbacks : public BLECharacteristicCallbacks {
     }
 };
 
-void setup() {
-    Serial.begin(115200);
-
+void setupServos() {
     panServo.attach(PAN_PIN);
     tiltServo.attach(TILT_PIN);
-    // No write() — servos stay exactly where they are physically
-    panPos = panTarget = panServo.read();
-    tiltPos = tiltTarget = tiltServo.read();
+}
 
+void setupBLE() {
     BLEDevice::init("PanTiltAgent");
     BLEServer*  pServer  = BLEDevice::createServer();
     BLEService* pService = pServer->createService(SERVICE_UUID);
 
-    pTxChar = pService->createCharacteristic(CHAR_UUID_TX, BLECharacteristic::PROPERTY_NOTIFY);
+    pTxChar = pService->createCharacteristic(
+        CHAR_UUID_TX,
+        BLECharacteristic::PROPERTY_NOTIFY
+    );
     pTxChar->addDescriptor(new BLE2902());
 
     BLECharacteristic* pRxChar = pService->createCharacteristic(
@@ -84,22 +98,14 @@ void setup() {
     Serial.println("BLE NUS running. Waiting for connection...");
 }
 
-void loop() {
-    if (panPos < panTarget) {
-        panServo.write(++panPos);
-        delay(15);
-    } else if (panPos > panTarget) {
-        panServo.write(--panPos);
-        delay(15);
-    }
+void setup() {
+    Serial.begin(115200);
+    setupServos();
+    setupBLE();
+}
 
-    if (tiltPos < tiltTarget) {
-        tiltServo.write(++tiltPos);
-        delay(15);
-    } else if (tiltPos > tiltTarget) {
-        tiltServo.write(--tiltPos);
-        delay(15);
-    }
+void loop() {
+    delay(10);
 }
 
 /*
