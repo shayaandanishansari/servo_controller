@@ -12,14 +12,16 @@
 #define TILT_PIN  15
 #define STEP      10
 #define PAN_MIN   0
-#define PAN_MAX   100
+#define PAN_MAX   90
+#define TILT_MIN  0
+#define TILT_MAX  50
 
 Servo panServo;
 Servo tiltServo;
 BLECharacteristic* pTxChar;
 
-int panPos  = 0;
-int tiltPos = 0;
+int panPos  = 45;
+int tiltPos = 25;
 
 class RxCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic* pChar) override {
@@ -30,16 +32,16 @@ class RxCallbacks : public BLECharacteristicCallbacks {
         String feedback;
 
         if (cmd == "right") {
-            for (int i = 0; i < STEP; i++){
-                panPos += 1;
-                panServo.write( panPos);
+            for (int i = 0; i < STEP; i++) {
+                panPos = constrain(panPos + 1, PAN_MIN, PAN_MAX);
+                panServo.write(panPos);
                 delay(15);
             }
             feedback = "right:moved";
         }
         else if (cmd == "left") {
             for (int i = 0; i < STEP; i++) {
-                panPos -= 1;
+                panPos = constrain(panPos - 1, PAN_MIN, PAN_MAX);
                 panServo.write(panPos);
                 delay(15);
             }
@@ -47,7 +49,7 @@ class RxCallbacks : public BLECharacteristicCallbacks {
         }
         else if (cmd == "up") {
             for (int i = 0; i < STEP; i++) {
-                tiltPos -= 1;
+                tiltPos = constrain(tiltPos - 1, TILT_MIN, TILT_MAX);
                 tiltServo.write(tiltPos);
                 delay(15);
             }
@@ -55,7 +57,7 @@ class RxCallbacks : public BLECharacteristicCallbacks {
         }
         else if (cmd == "down") {
             for (int i = 0; i < STEP; i++) {
-                tiltPos += 1;
+                tiltPos = constrain(tiltPos + 1, TILT_MIN, TILT_MAX);
                 tiltServo.write(tiltPos);
                 delay(15);
             }
